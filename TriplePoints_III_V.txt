@@ -1,0 +1,9 @@
+SF_Version 0.9.3
+19-Aug-2024 12:33:23 
+Triple Points (K;MPa)
+II_III_V
+ 249.4176
+ 355.5042
+III_V_water1
+ 256.1641
+ 350.1095

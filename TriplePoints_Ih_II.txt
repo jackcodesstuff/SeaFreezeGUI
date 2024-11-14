@@ -1,6 +1,0 @@
-SF_Version 0.9.3
-19-Aug-2024 12:33:23 
-Triple Points (K;MPa)
-Ih_II_III
- 238.2371
- 209.8850

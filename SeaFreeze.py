@@ -21,7 +21,7 @@ class GraphWindow(QMainWindow):
     # Establishes layouts and variables
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("SeaFreeze Version 1.0.1")
+        self.setWindowTitle("SeaFreeze Version 2.0.1")
         self.set_proportional_geometry(0.1, 0.1, 0.85, 0.8)
         # self.setStyleSheet("border-radius: 10px; border: 1px solid gray")
 
@@ -116,7 +116,8 @@ class GraphWindow(QMainWindow):
         layout.addWidget(self.tab_widget)
         self.tab_widget.addTab(self.graph_tab, "Graph")
 
-        self.selected_graph_type = "Gibb's Energy" # graph type selected from dropdown
+        self.selected_graph_type = "" # graph type selected from dropdown
+        self.has_selected = False # check if graph type has been selected before graphing
         self.graph_type_buttons = [] # list of graph type buttons
         self.graph_type_button_labels = [] # labels for graph types
         self.material = None # material for saving purposes
@@ -260,7 +261,7 @@ class GraphWindow(QMainWindow):
 
     # Updates the main graph
     def update_graph(self):
-        if not self.mat:
+        if not self.mat or not self.has_selected:
             return
 
         self.title = '\n'.join(self.mat.split('\n')[:2]) + " " + self.selected_graph_type + (
@@ -955,7 +956,11 @@ class GraphWindow(QMainWindow):
         ## Choose Max / Mins Label
         choose_max_mins_layout = QHBoxLayout()
         max_min_label = QLabel("Choose Number of Points and Max/Mins:")
-        max_min_label.setFixedSize(230, 25)
+        max_min_label.setFixedSize(300, 25)
+        max_min_label_font = dropdown_label.font()
+        max_min_label_font.setPointSize(12)
+        max_min_label_font.setFamily("Arial")
+        max_min_label.setFont(max_min_label_font)
         max_min_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         choose_max_mins_layout.addWidget(max_min_label)
        
@@ -1307,6 +1312,7 @@ class GraphWindow(QMainWindow):
     # and units for the main graph
     def get_material(self, label):
         self.selected_graph_type = label
+        self.has_selected = True
         self.units = self.units_mapping.get(self.selected_graph_type, "")
 
     # Updates the material selected

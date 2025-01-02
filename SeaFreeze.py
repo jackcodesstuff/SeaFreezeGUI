@@ -66,10 +66,9 @@ class GraphWindow(QMainWindow):
         self.WP_canvas.mpl_connect('motion_notify_event', self.on_mouse_motion)
         self.layout_WP = QHBoxLayout(self.WP_tab)
         self.WP_plotting_checkboxes = {}
-        self.triple_points_checkbox = QCheckBox("Export\nTriple-Point(s)")
+        self.triple_points_checkbox = QCheckBox("Triple-Point(s)")
         self.delta_h_s_checkbox = QCheckBox("DeltaH\nand DeltaS")
         self.delta_v_checkbox = QCheckBox("DeltaV")
-        self.WP_xlsx_checkbox = QCheckBox("xlsx")
         self.WP_txt_checkbox = QCheckBox(".txt")
         self.plot_complete_button = None
         self.plot_complete_button_clicked = False
@@ -246,6 +245,17 @@ class GraphWindow(QMainWindow):
         else:
             self.inputs_widget.hide()
 
+    def resize_graph_to_window(self):
+        self.graph_canvas.hide()
+        self.graph_canvas.resize(self.size())
+        self.graph_figure.tight_layout()
+        self.graph_canvas.show()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # Ensure the graph resizes proportionally when the window is resized
+        self.resize_graph_to_window()
+
     ## MAIN GRAPH
 
     # Updates the main graph
@@ -358,7 +368,19 @@ class GraphWindow(QMainWindow):
         if (self.current_Pmin and self.current_Pmax and self.current_nP) and (self.current_Tmin and self.current_Tmax and self.current_nT):
             P = np.arange(self.current_Pmin, self.current_Pmax, (self.current_Pmax-self.current_Pmin)/self.current_nP)
             T = np.arange(self.current_Tmin, self.current_Tmax, (self.current_Tmax-self.current_Tmin)/self.current_nT)
-            PT = np.array([P, T], dtype='float64')
+            if self.current_nP == 1:
+                P = np.array([self.current_Pmin], dtype='float64')
+            else:
+                P = np.arange(self.current_Pmin, self.current_Pmax,
+                            (self.current_Pmax - self.current_Pmin) / self.current_nP)
+            if self.current_nT == 1:
+                T = np.array([self.current_Tmin], dtype='float64')
+            else:
+                T = np.arange(self.current_Tmin, self.current_Tmax,
+                            (self.current_Tmax - self.current_Tmin) / self.current_nT)
+            P = P.flatten()
+            T = T.flatten()
+            PT = np.array([P, T], dtype='object')
 
         if (self.current_nP < 1 or self.current_nT < 1):
             self.error()
@@ -481,6 +503,8 @@ class GraphWindow(QMainWindow):
             # adjust for jmol/jkg conversion
             A = self.convert_to_jmol(A)
 
+        self.resize_graph_to_window()
+
         if self.current_nP == 1 or self.current_nT == 1:
             # Replace the existing axis (if it's 3D)
             if isinstance(self.graph_ax, Axes3D):
@@ -528,6 +552,7 @@ class GraphWindow(QMainWindow):
             self.graph_ax.set_ylabel('Temperature (K)', labelpad=10)
             self.graph_ax.set_zlabel(self.selected_graph_type, labelpad=10)
             self.graph_ax.set_title(self.title, y=1, fontsize = 12)
+            self.resize_graph_to_window()
             self.graph_canvas.draw()
             self.set_data(P, T)
 
@@ -537,233 +562,242 @@ class GraphWindow(QMainWindow):
 
     # Parses imported file for graphtype, material and data points
     # returns a tuple with each
-    # def parse_file(self, file_path):
-    #     try:
-    #         with open(file_path, 'r') as file:
-    #             if file_path.endswith(".txt"):
-    #                 lines = file.readlines()
-    #                 # Extract header information
-    #                 graph_type_mat = lines[0].split()
-    #                 graph_type_mat = [element.replace('\n', '') for element in graph_type_mat]
+    def parse_file(self, file_path):
+        try:
+            with open(file_path, 'r') as file:
+                if file_path.endswith(".txt"):
+                    lines = file.readlines()
+                    # Extract header information
+                    graph_type_mat = lines[0].split()
+                    graph_type_mat = [element.replace('\n', '') for element in graph_type_mat]
 
-    #                 # Find the start of data points (skip the header section)
-    #                 data_start_index = 0
-    #                 for i, line in enumerate(lines):
-    #                     if '##############################################################' in line:
-    #                         data_start_index = i + 1
-    #                         break
-    #                 # Extract data points
-    #                 data_points = []
-    #                 for line in lines[data_start_index:]:
-    #                     point = tuple(map(float, line.strip().split(',')))
-    #                     data_points.append(point)
-    #                 nT = False
-    #                 nP = False
-    #                 if "1" in lines[3].split():
-    #                     nT = True
-    #                 if "1" in lines[4].split():
-    #                     nP = True
-    #                 return graph_type_mat, data_points, nT, nP
-    #             else:
-    #                 data = json.load(file)
-    #                 header = data[0] if len(data) > 0 else ""
-    #                 graph_type_mat = header.split()
-    #                 data_points_start_index = data.index(
-    #                     '##############################################################') + 1
-    #                 data_points = []
-    #                 points = data[data_points_start_index:]
-    #                 # Now you can iterate over the data points
-    #                 for point in points:
-    #                     # Assuming each point is stored as a list of values in the JSON
-    #                     data_points.append(tuple(map(float, point.split(','))))
-    #                 nT = False
-    #                 nP = False
-    #                 if "1" in data[3].split():
-    #                     nT = True
-    #                 if "1" in data[4].split():
-    #                     nP = True
-    #                 return graph_type_mat, data_points, nT, nP
-    #     except FileNotFoundError:
-    #         return None
+                    # Find the start of data points (skip the header section)
+                    data_start_index = 0
+                    for i, line in enumerate(lines):
+                        if '##############################################################' in line:
+                            data_start_index = i + 1
+                            break
+                    # Extract data points
+                    data_points = []
+                    for line in lines[data_start_index:]:
+                        point = tuple(map(float, line.strip().split(',')))
+                        data_points.append(point)
+                    nT = False
+                    nP = False
+                    if "1" in lines[3].split():
+                        nT = True
+                    if "1" in lines[4].split():
+                        nP = True
+                    return graph_type_mat, data_points, nT, nP
+                else:
+                    data = json.load(file)
+                    header = data[0] if len(data) > 0 else ""
+                    graph_type_mat = header.split()
+                    data_points_start_index = data.index(
+                        '##############################################################') + 1
+                    data_points = []
+                    points = data[data_points_start_index:]
+                    # Now you can iterate over the data points
+                    for point in points:
+                        # Assuming each point is stored as a list of values in the JSON
+                        data_points.append(tuple(map(float, point.split(','))))
+                    nT = False
+                    nP = False
+                    if "1" in data[3].split():
+                        nT = True
+                    if "1" in data[4].split():
+                        nP = True
+                    return graph_type_mat, data_points, nT, nP
+        except FileNotFoundError:
+            return None
 
-    # # Generates main graph from imported data
-    # def graph_main_from_import(self):
-    #     file_url, _ = QFileDialog.getOpenFileUrl(self, "Select File", QUrl(), "All Files (*.*)")
-    #     # Convert QUrl to a local file path
-    #     file_path = file_url.toLocalFile()
-    #     try:
-    #         graph_type_mat, data_points, nT, nP = self.parse_file(file_path)
-    #         self.graph_ax.clear()
-    #         if graph_type_mat and (pt for pt in data_points):
-    #             # Define possible cases
-    #             waters = ['water 1', 'water 2', 'water 3']
-    #             ices = ['Ice Ih', 'Ice II', 'Ice III', 'Ice V', 'Ice VI']
+    # Generates main graph from imported data
+    def import_graph(self):
+        file_url, _ = QFileDialog.getOpenFileUrl(self, "Select File", QUrl(), "All Files (*.*)")
+        # Convert QUrl to a local file path
+        file_path = file_url.toLocalFile()
+        try:
+            graph_type_mat, data_points, nT, nP = self.parse_file(file_path)
+            self.graph_ax.clear()
+            if graph_type_mat and (pt for pt in data_points):
+                # Define possible cases
+                waters = ['water 1', 'water 2', 'water 3']
+                ices = ['Ice Ih', 'Ice II', 'Ice III', 'Ice V', 'Ice VI']
 
-    #             # Check if any of the cases is a substring of the input
-    #             matched_case = ''
-    #             graph_type = ''
-    #             for case in waters + ices:
-    #                 case_parts = case.split()
-    #                 len_sub = len(case_parts)
+                # Check if any of the cases is a substring of the input
+                matched_case = ''
+                graph_type = ''
+                state = ''
+                for case in waters + ices:
+                    case_parts = case.split()
+                    len_sub = len(case_parts)
                     
-    #                 # Get the last `len_sub` elements from `graph_type_mat`
-    #                 last_elements = graph_type_mat[-len_sub:]
+                    # Get the last `len_sub` elements from `graph_type_mat`
+                    last_elements = graph_type_mat[-len_sub:]
                     
-    #                 # Check if `case_parts` matches `last_elements`
-    #                 if last_elements == case_parts:
-    #                     matched_case = case_parts                    
-    #                     # Remove matched case from graph_type_mat
-    #                     for part in matched_case:
-    #                         if part in graph_type_mat:
-    #                             graph_type_mat.remove(part)
-    #                     # Join the remaining parts into a string, if needed
-    #                     graph_type = ' '.join(graph_type_mat).strip()
-    #                     break
-    #             mat = ' '.join(matched_case).strip()
-    #             data_array = np.array(data_points)
-    #             three_d = False
-    #             two_d = False
-    #             for item in data_array[:1]:
-    #                 if len(item) == 3:
-    #                     three_d = True
-    #                     break
-    #                 elif len(item) == 2:
-    #                     two_d = True
-    #                     break
-    #             if three_d:
-    #                 P = data_array[:, 0]  # All x values
-    #                 T = data_array[:, 1]  # All y values
-    #                 PT = np.array([P, T], dtype='object')
-    #                 P_grid, T_grid = np.meshgrid(P, T)
-    #                 out = None
-    #                 match mat:
-    #                     case 'Ice Ih':
-    #                         out = sf.getProp(PT, 'Ih')
-    #                     case 'Ice II':
-    #                         out = sf.getProp(PT, 'II')
-    #                     case 'Ice III':
-    #                         out = sf.getProp(PT, 'III')
-    #                     case 'Ice V':
-    #                         out = sf.getProp(PT, 'V')
-    #                     case 'Ice VI':
-    #                         out = sf.getProp(PT, 'VI')
-    #                     case 'water 1':
-    #                         out = sf.getProp(PT, 'water1')
-    #                     case 'water 3':
-    #                         out = sf.getProp(PT, 'water_IAPWS95')
-    #                     case 'water 2':
-    #                         out = sf.getProp(PT, 'water2')
-    #                 if mat in ices:
-    #                     match(graph_type):
-    #                         case "Gibb's Energy":
-    #                             A = np.transpose(np.array(out.G))
-    #                         case "Entropy":
-    #                             A = np.transpose(np.array(out.S))
-    #                         case "Internal Energy":
-    #                             A = np.transpose(np.array(out.U))
-    #                         case "Enthalpy":
-    #                             A = np.transpose(np.array(out.H))
-    #                         case "Helmholtz free energy":
-    #                             A = np.transpose(np.array(out.A))
-    #                         case "Density":
-    #                             A = np.transpose(np.array(out.rho))
-    #                         case "Specific Heat (Cp)":
-    #                             A = np.transpose(np.array(out.Cp))
-    #                         case "Specific Heat (Cv)":
-    #                             A = np.transpose(np.array(out.Cv))
-    #                         case "Isothermal Bulk Modulus":
-    #                             A = np.transpose(np.array(out.Kt))
-    #                         case "Isoentropic Bulk Modulus":
-    #                             A = np.transpose(np.array(out.Ks))
-    #                         case "Isothermal Bulk Modulus Derivative":
-    #                             A = np.transpose(np.array(out.Kp))
-    #                         case "Thermal Expansivity":
-    #                             A = np.transpose(np.array(out.alpha))
-    #                         case "Sound Speed":
-    #                             A = np.transpose(np.array(out.vel))
-    #                         case "P Wave Velocity (solids)":
-    #                             A = np.transpose(np.array(out.Vp))
-    #                         case "S Wave Velocity (solids)":
-    #                             A = np.transpose(np.array(out.Vs))
-    #                         case "Shear Modulus (solids)":
-    #                             A = np.transpose(np.array(out.shear))
-    #                         case _:
-    #                             return
-    #                 else:
-    #                     match(graph_type):
-    #                         case "Gibb's Energy":
-    #                             A = np.transpose(np.array(out.G))
-    #                         case "Entropy":
-    #                             A = np.transpose(np.array(out.S))
-    #                         case "Internal Energy":
-    #                             A = np.transpose(np.array(out.U))
-    #                         case "Enthalpy":
-    #                             A = np.transpose(np.array(out.H))
-    #                         case "Helmholtz free energy":
-    #                             A = np.transpose(np.array(out.A))
-    #                         case "Density":
-    #                             A = np.transpose(np.array(out.rho))
-    #                         case "Specific Heat (Cp)":
-    #                             A = np.transpose(np.array(out.Cp))
-    #                         case "Specific Heat (Cv)":
-    #                             A = np.transpose(np.array(out.Cv))
-    #                         case "Isothermal Bulk Modulus":
-    #                             A = np.transpose(np.array(out.Kt))
-    #                         case "Isoentropic Bulk Modulus":
-    #                             A = np.transpose(np.array(out.Ks))
-    #                         case "Isothermal Bulk Modulus Derivative":
-    #                             A = np.transpose(np.array(out.Kp))
-    #                         case "Thermal Expansivity":
-    #                             A = np.transpose(np.array(out.alpha))
-    #                         case "Sound Speed":
-    #                             A = np.transpose(np.array(out.vel))
-    #                         case _:
-    #                             return
+                    # Check if `case_parts` matches `last_elements`
+                    if last_elements == case_parts:
+                        matched_case = case_parts                    
+                        # Remove matched case from graph_type_mat
+                        for part in matched_case:
+                            if part in graph_type_mat:
+                                graph_type_mat.remove(part)
+                        graph_type = ' '.join(graph_type_mat).strip()
 
-    #                 if mat == 'water 1':
-    #                     mat = 'Liquid water\n(Bollengier et al. 2019)'
-    #                 elif mat == 'water 2':
-    #                     mat = 'Liquid water\n(Abrahamson et al. 2004)'
-    #                 elif mat == 'water 3':
-    #                     mat = 'Liquid water\n(IAPWS 95)'
+                        if "Liquid" in graph_type:
+                            graph_type, state = graph_type.split("Liquid", 1)
+                            state = "Liquid"
+                        elif "Ice" in graph_type:
+                            graph_type, state = graph_type.split("Ice", 1)
+                            state = "Ice"
+                        break
+                mat = ' '.join(matched_case).strip()
+                data_array = np.array(data_points)
+                three_d = False
+                two_d = False
+                for item in data_array[:1]:
+                    if len(item) == 3:
+                        three_d = True
+                        break
+                    elif len(item) == 2:
+                        two_d = True
+                        break
+                if three_d:
+                    P = data_array[::80, 0]  # All x values
+                    T = data_array[::80, 1]  # All y values
+                    PT = np.array([P, T], dtype='float64')
+                    P_grid, T_grid = np.meshgrid(P, T)
 
-    #                 title = mat + " " + graph_type
-    #                 if isinstance(self.graph_ax, Axes):
-    #                     self.graph_ax.remove()
-    #                     self.graph_ax = self.graph_figure.add_subplot(111, projection = '3d')
-    #                     self.graph_ax.clear()
-    #                 self.graph_ax.plot_surface(P_grid, T_grid, A, cmap='viridis')
-    #                 self.graph_ax.set_xlabel('Pressure (MPa)', labelpad=10)
-    #                 self.graph_ax.set_ylabel('Temperature (K)', labelpad=10)
-    #                 self.graph_ax.set_zlabel(graph_type + " (" + "units" + ")", labelpad=10)
-    #                 self.graph_ax.set_title(title, y=1, fontsize = 12)
-    #                 self.graph_ax.view_init(elev=20, azim=-110)
-    #                 self.graph_ax.set_facecolor('#f0f4f8')
-    #                 self.graph_canvas.draw()
-    #             if two_d:
-    #                 X = data_array[:, 0]  # All x values
-    #                 A = data_array[:, 1]  # All A values (Y for 2d graph)
-    #                 x_label = ''
-    #                 # nT is 1, so plot P and A
-    #                 if nT:
-    #                     x_label = 'Pressure (MPa)'
-    #                 # nP is 1, so plot T and A
-    #                 elif nP:
-    #                     x_label = 'Temperature (K)'
+                    out = None
+                    match mat:
+                        case 'Ice Ih':
+                            out = sf.getProp(PT, 'Ih')
+                        case 'Ice II':
+                            out = sf.getProp(PT, 'II')
+                        case 'Ice III':
+                            out = sf.getProp(PT, 'III')
+                        case 'Ice V':
+                            out = sf.getProp(PT, 'V')
+                        case 'Ice VI':
+                            out = sf.getProp(PT, 'VI')
+                        case 'water 1':
+                            out = sf.getProp(PT, 'water1')
+                        case 'water 3':
+                            out = sf.getProp(PT, 'water_IAPWS95')
+                        case 'water 2':
+                            out = sf.getProp(PT, 'water2')
                     
-    #                 title = mat + " " + graph_type
-    #                 if isinstance(self.graph_ax, Axes3D):
-    #                     self.graph_ax.remove()
-    #                     self.graph_ax = self.graph_figure.add_subplot(111)
-    #                     self.graph_ax.clear()
-    #                 self.graph_ax.plot(X, A)
-    #                 self.graph_ax.set_xlabel(x_label, fontsize=10, labelpad=10)
-    #                 self.graph_ax.set_ylabel(self.mat, fontsize=10, labelpad=10)
-    #                 self.graph_ax.set_title(title, y=1, fontsize = 12)
-    #                 self.graph_ax.set_facecolor('#f0f4f8')
-    #                 self.graph_canvas.draw()
-    #     except TypeError:
-    #         print("Invalid File")
+                    if state == "Ice":
+                        match(graph_type.strip()):
+                            case "Gibb's Energy":
+                                A = np.transpose(np.array(out.G))
+                            case "Entropy":
+                                A = np.transpose(np.array(out.S))
+                            case "Internal Energy":
+                                A = np.transpose(np.array(out.U))
+                            case "Enthalpy":
+                                A = np.transpose(np.array(out.H))
+                            case "Helmholtz free energy":
+                                A = np.transpose(np.array(out.A))
+                            case "Density":
+                                A = np.transpose(np.array(out.rho))
+                            case "Specific Heat (Cp)":
+                                A = np.transpose(np.array(out.Cp))
+                            case "Specific Heat (Cv)":
+                                A = np.transpose(np.array(out.Cv))
+                            case "Isothermal Bulk Modulus":
+                                A = np.transpose(np.array(out.Kt))
+                            case "Isoentropic Bulk Modulus":
+                                A = np.transpose(np.array(out.Ks))
+                            case "Isothermal Bulk Modulus Derivative":
+                                A = np.transpose(np.array(out.Kp))
+                            case "Thermal Expansivity":
+                                A = np.transpose(np.array(out.alpha))
+                            case "Sound Speed":
+                                A = np.transpose(np.array(out.vel))
+                            case "P Wave Velocity (solids)":
+                                A = np.transpose(np.array(out.Vp))
+                            case "S Wave Velocity (solids)":
+                                A = np.transpose(np.array(out.Vs))
+                            case "Shear Modulus (solids)":
+                                A = np.transpose(np.array(out.shear))
+                            case _:
+                                return
+                    else:
+                        match(graph_type.strip()):
+                            case "Gibb's Energy":
+                                A = np.transpose(np.array(out.G))
+                            case "Entropy":
+                                A = np.transpose(np.array(out.S))
+                            case "Internal Energy":
+                                A = np.transpose(np.array(out.U))
+                            case "Enthalpy":
+                                A = np.transpose(np.array(out.H))
+                            case "Helmholtz free energy":
+                                A = np.transpose(np.array(out.A))
+                            case "Density":
+                                A = np.transpose(np.array(out.rho))
+                            case "Specific Heat (Cp)":
+                                A = np.transpose(np.array(out.Cp))
+                            case "Specific Heat (Cv)":
+                                A = np.transpose(np.array(out.Cv))
+                            case "Isothermal Bulk Modulus":
+                                A = np.transpose(np.array(out.Kt))
+                            case "Isoentropic Bulk Modulus":
+                                A = np.transpose(np.array(out.Ks))
+                            case "Isothermal Bulk Modulus Derivative":
+                                A = np.transpose(np.array(out.Kp))
+                            case "Thermal Expansivity":
+                                A = np.transpose(np.array(out.alpha))
+                            case "Sound Speed":
+                                A = np.transpose(np.array(out.vel))
+                            case _:
+                                return
+
+                    if mat == 'water 1':
+                        mat = 'Liquid water\n(Bollengier et al. 2019)'
+                    elif mat == 'water 2':
+                        mat = 'Liquid water\n(Abrahamson et al. 2004)'
+                    elif mat == 'water 3':
+                        mat = 'Liquid water\n(IAPWS 95)'
+
+                    title = mat + " " + graph_type
+                    if isinstance(self.graph_ax, Axes):
+                        self.graph_ax.remove()
+                        self.graph_ax = self.graph_figure.add_subplot(111, projection = '3d')
+                        self.graph_ax.clear()
+                    self.graph_ax.plot_surface(P_grid, T_grid, A, cmap='viridis')
+                    self.graph_ax.set_xlabel('Pressure (MPa)', labelpad=10)
+                    self.graph_ax.set_ylabel('Temperature (K)', labelpad=10)
+                    self.graph_ax.set_zlabel(graph_type + " (" + "units" + ")", labelpad=10)
+                    self.graph_ax.set_title(title, y=1, fontsize = 12)
+                    self.graph_ax.view_init(elev=20, azim=-110)
+                    self.graph_ax.set_facecolor('#f0f4f8')
+                    self.graph_canvas.draw()
+                if two_d:
+                    X = data_array[:, 0]  # All x values
+                    A = data_array[:, 1]  # All A values (Y for 2d graph)
+                    x_label = ''
+                    # nT is 1, so plot P and A
+                    if nT:
+                        x_label = 'Pressure (MPa)'
+                    # nP is 1, so plot T and A
+                    elif nP:
+                        x_label = 'Temperature (K)'
+                    
+                    title = mat + " " + graph_type
+                    if isinstance(self.graph_ax, Axes3D):
+                        self.graph_ax.remove()
+                        self.graph_ax = self.graph_figure.add_subplot(111)
+                        self.graph_ax.clear()
+                    self.graph_ax.plot(X, A)
+                    self.graph_ax.set_xlabel(x_label, fontsize=10, labelpad=10)
+                    self.graph_ax.set_ylabel(self.mat, fontsize=10, labelpad=10)
+                    self.graph_ax.set_title(title, y=1, fontsize = 12)
+                    self.graph_ax.set_facecolor('#f0f4f8')
+                    self.graph_canvas.draw()
+        except TypeError:
+            print("Invalid File")
 
     # Displays error message
     def error(self):
@@ -858,9 +892,9 @@ class GraphWindow(QMainWindow):
 
         ## SELECT MATERIAL DROPDOWN
         dropdown_layout = QHBoxLayout()
-        dropdown_layout.addSpacing(-20)
-        dropdown_label = QLabel("Select Material:")
-        dropdown_label.setFixedWidth(150)
+        dropdown_layout.addSpacing(-80)
+        dropdown_label = QLabel("    Select Material Here:")
+        dropdown_label.setFixedWidth(190)
         select_material_font = dropdown_label.font()
         select_material_font.setPointSize(12)
         select_material_font.setFamily("Arial")
@@ -1166,11 +1200,11 @@ class GraphWindow(QMainWindow):
         save_update_layout.addWidget(self.update_button)
 
         # Import graph button
-        # self.import_button = QPushButton("Import Graph")
-        # self.import_button.setStyleSheet("border-radius: 5px; border: 1px solid gray")
-        # self.import_button.setFixedWidth(100)
-        # self.import_button.clicked.connect(self.graph_main_from_import)
-        # save_update_layout.addWidget(self.import_button)
+        self.import_button = QPushButton("Import Graph")
+        self.import_button.setStyleSheet("border-radius: 5px; border: 1px solid gray")
+        self.import_button.setFixedWidth(100)
+        self.import_button.clicked.connect(self.import_graph)
+        save_update_layout.addWidget(self.import_button)
        
         inputs_layout.addLayout(save_update_layout)
        
@@ -1307,6 +1341,10 @@ class GraphWindow(QMainWindow):
         layout = QVBoxLayout(self.calculator_tab)
         layout.addSpacing(50)
         top_label = QLabel("Choose Material via 'Select Material' on the Right\nThen Input Pressure and Temperature Values")
+        top_label_font = top_label.font()
+        top_label_font.setPointSize(12)
+        top_label_font.setFamily("Arial")
+        top_label.setFont(top_label_font)
         top_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(top_label)
         layout.addSpacing(30)
@@ -1315,11 +1353,15 @@ class GraphWindow(QMainWindow):
 
         p_t_layout = QHBoxLayout()
         self.p_t_input_boxes = [QLineEdit() for _ in range(2)]
-        calc_labels = ["Pressure (MPa)", "Temperature (K)"]
+        calc_labels = ["  Pressure (MPa)", "  Temperature (K)"]
 
         for label, input_box in zip(calc_labels, self.p_t_input_boxes):
             pair_layout = QVBoxLayout()  # Create a separate layout for each pair
             label_widget = QLabel(label)
+            label_font = label_widget.font()
+            label_font.setPointSize(10)
+            label_font.setFamily("Arial")
+            label_widget.setFont(label_font)
             label_widget.setAlignment(Qt.AlignmentFlag.AlignTop)  # Align label to the top
             pair_layout.addWidget(label_widget)
             
@@ -1327,7 +1369,7 @@ class GraphWindow(QMainWindow):
             hbox.addSpacing(-6)
             hbox.addWidget(input_box)
             pair_layout.addLayout(hbox)
-            input_box.setMaximumWidth(100)
+            input_box.setMaximumWidth(120)
             input_box.setStyleSheet("border: 1px solid #D3D3D3; border-radius: 5px; background: white; padding: 5px;")
             p_t_layout.addLayout(pair_layout)
 
@@ -1336,9 +1378,13 @@ class GraphWindow(QMainWindow):
 
         # Create a "Calculate" button
         calculate_button = QPushButton("Calculate")
-        calculate_button.setStyleSheet("background: gray; border-radius: 5px; border: 1px solid gray")
+        calculate_font = calculate_button.font()
+        calculate_font.setPointSize(10)
+        calculate_font.setFamily("Arial")
+        calculate_button.setFont(calculate_font)
+        calculate_button.setStyleSheet("background: gray; border-radius: 5px; border: 1px solid gray;")
         self.make_button_gray(calculate_button, "#A9A9A9")
-        calculate_button.setMaximumWidth(200)
+        calculate_button.setMaximumWidth(150)
         hbox = QHBoxLayout()
         hbox.addSpacing(20)
         hbox.addWidget(calculate_button)
@@ -1567,10 +1613,15 @@ class GraphWindow(QMainWindow):
         sections_horizontal_container = QHBoxLayout()
         sections_layout = QVBoxLayout()
 
-        sections_layout.addSpacing(30)
         hbox = QHBoxLayout()
         options_label = QLabel("Choose Plot/Export Options")
-        options_label.setFixedSize(150, 30)
+        options_label.setStyleSheet("""
+            QLabel {
+                font-size: 18px;
+            }
+        """
+        )
+        options_label.setFixedSize(250, 30)
         hbox.addWidget(options_label)
         sections_layout.addLayout(hbox)
 
@@ -1581,11 +1632,11 @@ class GraphWindow(QMainWindow):
         melting_curves_label = QLabel("Melting Curves")
         melting_curves_label.setStyleSheet("""
             QLabel {
-                padding-left: 5px;
+                font-size: 16px;
             }
         """
         )
-        melting_curves_label.setFixedSize(100, 40)
+        melting_curves_label.setFixedSize(120, 40)
         m_label_box.addWidget(melting_curves_label)
         melting_section.addLayout(m_label_box)
         self.melting_curve_checkboxes = {
@@ -1611,7 +1662,7 @@ class GraphWindow(QMainWindow):
                 height: 15px;
             }
             QCheckBox {
-                padding-left: 5px;
+                font-size: 14px;
             }                  
             """)
             checkbox.setFixedSize(100, 30)
@@ -1622,10 +1673,10 @@ class GraphWindow(QMainWindow):
         s_label_box = QHBoxLayout()
         solid_boxes = QGridLayout()
         solid_solid_label = QLabel("Solid-Solid Transitions")
-        solid_solid_label.setFixedSize(140, 40)
+        solid_solid_label.setFixedSize(170, 40)
         solid_solid_label.setStyleSheet("""
             QLabel {
-                padding-left: 5px;
+                font-size: 16px;
             }
         """
         )
@@ -1657,7 +1708,7 @@ class GraphWindow(QMainWindow):
                 height: 15px;
             }
             QCheckBox {
-                padding-left: 5px;
+                font-size: 14px;
             }                  
             """)
             checkbox.setFixedSize(80, 30)
@@ -1667,19 +1718,19 @@ class GraphWindow(QMainWindow):
         export_section = QVBoxLayout()
         e_label_box = QHBoxLayout()
         export_boxes = QGridLayout()
-        export_label = QLabel("Export")
+        export_label = QLabel("Export As:")
         export_label.setStyleSheet("""
             QLabel {
-                padding-left: 5px;
+                font-size: 16px;
             }
         """
         )
-        export_label.setFixedSize(55, 40)
+        export_label.setFixedSize(75, 40)
         e_label_box.addWidget(export_label)
         export_section.addLayout(e_label_box)
         self.WPD_export_checkboxes = {
-            "Export\nTriple-Point(s)": self.triple_points_checkbox, "DeltaH\nand DeltaS": self.delta_h_s_checkbox,
-            "DeltaV": self.delta_v_checkbox, ".xlsx": self.WP_xlsx_checkbox, ".txt": self.WP_txt_checkbox
+            "Triple-Point(s)": self.triple_points_checkbox, "Delta H and S": self.delta_h_s_checkbox,
+            "DeltaV": self.delta_v_checkbox, ".txt": self.WP_txt_checkbox
         }
         boxes_per_column = 2
         for i, (checkbox_name, checkbox) in enumerate(self.WPD_export_checkboxes.items()):
@@ -1692,12 +1743,13 @@ class GraphWindow(QMainWindow):
                 border: 1px solid #D3D3D3;
                 background: white;
                 border-radius: 5px;
+                font-size: 10px;
                 width: 15px;
                 height: 15px;
             }
             QCheckBox {
-                padding-left: 5px;
-            }                  
+                font-size: 14px;
+            }
             """)
             checkbox.setFixedSize(110, 40)
         export_section.addLayout(export_boxes)
@@ -2273,9 +2325,9 @@ class GraphWindow(QMainWindow):
         if not basefile:
             return  # Skip if there's no mapping for the checkbox name
 
-        base_file_path = f"WPD files/{basefile}.txt"
-        D_S_H_file_path = f"WPD files/{basefile}_D_S_H.txt"
-        DV_file_path = f"WPD files/{basefile}_DV.txt"
+        base_file_path = f"WPD-files/{basefile}.txt"
+        D_S_H_file_path = f"WPD-files/{basefile}_D_S_H.txt"
+        DV_file_path = f"WPD-files/{basefile}_DV.txt"
 
         # Save base file for all cases
         self.save_base_file(base_file_path, directory_path, checkbox_name, "")
@@ -2295,8 +2347,8 @@ class GraphWindow(QMainWindow):
             if not directory_path:
                 return  # If the user cancels the directory selection, exit the function
 
-            base_path = "WPD files/TriplePoints"
-            path_All = "WPD files/All_Triple_Points.txt"
+            base_path = "WPD-files/TriplePoints"
+            path_All = "WPD-files/All_Triple_Points.txt"
             current_index = self.tab_widget.currentIndex()
             current_tab_name = self.tab_widget.tabText(current_index)
             triple_point_suffixes = {
@@ -2331,10 +2383,10 @@ class GraphWindow(QMainWindow):
                 for checkbox_name, suffix in triple_point_suffixes.items():
                     suffix = suffix.replace(".txt", "").replace("/", "_").lstrip("_")
                     if self.delta_h_s_checkbox.isChecked():
-                        self.save_base_file(f"WPD files/{suffix}_D_S_H_WPD.txt", directory_path, checkbox_name, "_D_S_H_WPD")
+                        self.save_base_file(f"WPD-files/{suffix}_D_S_H_WPD.txt", directory_path, checkbox_name, "_D_S_H_WPD")
 
                     if self.delta_v_checkbox.isChecked():
-                        self.save_base_file(f"WPD files/{suffix}_DV_WPD.txt", directory_path, checkbox_name, "_DV_WPD")
+                        self.save_base_file(f"WPD-files/{suffix}_DV_WPD.txt", directory_path, checkbox_name, "_DV_WPD")
         except Exception:
             return
 
@@ -2370,10 +2422,10 @@ class GraphWindow(QMainWindow):
         help_button = QPushButton("Help")
         help_button.setStyleSheet("border-radius: 5px; border: 1px solid gray;")
         help_button.clicked.connect(self.open_github_page)
-        help_button.setFixedWidth(100)
+        help_button.setFixedSize(75, 25)
         hbox.addWidget(help_button)
         hbox.addStretch(1)
-        more_layout.addSpacing(25)
+        more_layout.addSpacing(40)
         more_layout.addLayout(hbox)
         self.tab_widget.addTab(more_tab, "More")
 

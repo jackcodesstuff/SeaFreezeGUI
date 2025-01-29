@@ -15,7 +15,7 @@ from matplotlib.axes import Axes
 import matplotlib.lines as mlines
 from mpl_toolkits.mplot3d import Axes3D
 from datetime import datetime
- 
+
 class GraphWindow(QMainWindow):
     # Initializes the window, primary widget and layout
     # Establishes layouts and variables
@@ -1029,7 +1029,6 @@ class GraphWindow(QMainWindow):
         # Check if there's a previously clicked button and make it normal
         if self.current_button_mat is not None:
             self.make_button_normal(self.current_button_mat)
-
         # Make the clicked button gray
         self.make_button_gray(button, "#A9A9A9")
 

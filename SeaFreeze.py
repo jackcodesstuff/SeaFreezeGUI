@@ -367,21 +367,30 @@ class GraphWindow(QMainWindow):
  
         # Define the PT conditions
         if (self.current_Pmin and self.current_Pmax and self.current_nP) and (self.current_Tmin and self.current_Tmax and self.current_nT):
-            P = np.arange(self.current_Pmin, self.current_Pmax, (self.current_Pmax-self.current_Pmin)/self.current_nP)
-            T = np.arange(self.current_Tmin, self.current_Tmax, (self.current_Tmax-self.current_Tmin)/self.current_nT)
-            if self.current_nP == 1:
-                P = np.array([self.current_Pmin], dtype='float64')
+            P = None
+            T = None
+            if self.current_nT == 1 or self.current_nP == 1:
+                if self.current_nP == 1:
+                    T = np.arange(self.current_Tmin, self.current_Tmax, (self.current_Tmax - self.current_Tmin) / self.current_nT)
+                    P = np.full_like(T, fill_value=self.current_Pmin, dtype='float64')
+                else:
+                    P = np.arange(self.current_Pmin, self.current_Pmax, (self.current_Pmax - self.current_Pmin) / self.current_nP)
+                    T = np.full_like(P, fill_value=self.current_Tmin, dtype='float64')
             else:
-                P = np.arange(self.current_Pmin, self.current_Pmax,
-                            (self.current_Pmax - self.current_Pmin) / self.current_nP)
-            if self.current_nT == 1:
-                T = np.array([self.current_Tmin], dtype='float64')
-            else:
-                T = np.arange(self.current_Tmin, self.current_Tmax,
-                            (self.current_Tmax - self.current_Tmin) / self.current_nT)
-            P = P.flatten()
-            T = T.flatten()
-            PT = np.array([P, T], dtype='object')
+                P = np.arange(self.current_Pmin, self.current_Pmax, (self.current_Pmax-self.current_Pmin)/self.current_nP)
+                T = np.arange(self.current_Tmin, self.current_Tmax, (self.current_Tmax-self.current_Tmin)/self.current_nT)
+
+            P.flatten()
+            T.flatten()
+
+            if self.current_nP > self.current_nT:
+                T = np.resize(T, len(P))
+            elif self.current_nT > self.current_nP:
+                P = np.resize(P, len(T))
+
+            if self.mat in self.ices:
+                PT = np.array([P, T], dtype='float64')
+            else: PT = np.array([P, T], dtype='object')
 
         if (self.current_nP < 1 or self.current_nT < 1):
             self.error()
